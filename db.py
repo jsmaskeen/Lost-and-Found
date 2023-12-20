@@ -156,6 +156,7 @@ async def mark_item_as_found(item_id): # user marks their lost item as found
     x = await lost_items_db.find_one({'_id':item_id})
     uid = x['lost_by_uid']
     await decrement(uid)
+    await increment('found_lost_items',uid)
 
 
 async def insert_found_item(picture_url,name,description,location_found,category,date,time,uid,claimed=False): # user inserts someone elses lost item which they found
@@ -264,20 +265,73 @@ async def claim_item(item_id,uid): # user claims some item from list of found it
     }})
 
     await mark_item_as_claimed(item_id)
-    increment('found_lost_items',uid)
+    await increment('found_lost_items',uid)
 
 
 
+async def list_new_claims():
+    return await claims_db.find({'stage':'requested'}).to_list(length=None)
+
+async def list_under_processing():
+    return await claims_db.find({'stage':'approved'}).to_list(length=None)
 
 
-async def add_to_claim_queue(item_id,uid,proof):
+
+async def add_to_claim_queue(item_id,uid,proof,name,rollnum,additional_information):
+    """stage should be requested , under_processing , processed"""
     await claims_db.insert_one({
         'item_id':item_id,
         'claimed_by':uid,
-        'proof':proof
+        'proof':proof,
+        'stage':'requested',
+        'name':name,
+        'rollnum':rollnum,
+        'additional_information':additional_information,
+        'claimed_at':make_timestamp()
     })
 
 
+async def approve_claim_stage2(claim_id,otp):
+    if isinstance(claim_id,str):
+        claim_id = ObjectId(claim_id)
+
+    await claims_db.find_one_and_update({'_id':claim_id},{'$set':{
+        'stage':'approved',
+        'otp':otp
+    }})
+
+
+async def reject_claim_stage2(claim_id):
+    if isinstance(claim_id,str):
+        claim_id = ObjectId(claim_id)
+
+    await claims_db.find_one_and_update({'_id':claim_id},{'$set':{
+        'stage':'rejected'
+    }})
+    
+
+async def get_claims_by_id(item_id):
+    return await claims_db.find({'item_id':item_id,'stage':'requested'}).to_list(length=None)
+
+async def get_stage2claim_by_id(id):
+    if isinstance(id,str):
+        id = ObjectId(id)
+    return await claims_db.find_one({'_id':id})
+
+
+async def complete_claim(claim_id):
+    if isinstance(claim_id,str):
+        claim_id = ObjectId(claim_id)
+
+    await claims_db.find_one_and_update({'_id':claim_id},{'$set':{
+        'stage':'completed'
+    }})
+
+async def get_found_item_by_id(item_id):
+    if isinstance(item_id,str):
+        item_id = ObjectId(item_id)
+    
+    return await found_items_db.find_one({'_id':item_id})
 
 async def get_lost_item_by_id(item_id):
     if isinstance(item_id,str):
@@ -294,6 +348,8 @@ async def delete_item(dbname,item_id):
         await lost_items_db.delete_one({'_id':item_id})
     if dbname == 'found_items_db':
         await found_items_db.delete_one({'_id':item_id})
+    if dbname == 'claims_queue_db':
+        await claims_db.delete_one({'_id':item_id})
 
 
 async def add_admin(uid):
@@ -334,6 +390,8 @@ def sgetuser(uid):
     uid = str(uid)
     x = u_db.find_one({'_id':uid})
     return x
+
+
 
 # asyncio.run(m())
     

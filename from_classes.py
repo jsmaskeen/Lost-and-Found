@@ -9,6 +9,7 @@ from wtforms import (
     DateField,
     TextAreaField,
     SelectField,
+    SelectMultipleField
 )
 from wtforms.validators import DataRequired
 from werkzeug.datastructures import FileStorage
@@ -43,7 +44,7 @@ class ReportFoundForm(FlaskForm):
 class ClaimForm(FlaskForm):
     name = StringField("Enter your name", validators=[DataRequired()])
     rollnum = StringField("Roll number/Employee code/NA", validators=[DataRequired()])
-    proofs = FileField("Upload a single pdf of images of proof(s).")
+    proofs = FileField("Upload a single PDF of images of proof(s).")
     additional_information = TextAreaField(
         "Any additional information you would like to provide ?"
     )
@@ -77,4 +78,15 @@ class SearchLostItems(FlaskForm):
 
 class MarkFound(FlaskForm):
     question = BooleanField('Are you sure you want to mark this item as found ?',validators=[DataRequired()],default=True)
+    submit = SubmitField('Submit')
+
+
+class ReviewClaimItemForm(FlaskForm):
+    approve_these = SelectMultipleField('Select claims to approve.')
+    reject_these = SelectMultipleField('Select these claims to reject.')
+    submit = SubmitField('Submit')
+
+
+class FinaliseClaimItem(FlaskForm):
+    otp = StringField('Enter the OTP',validators=[DataRequired(),])
     submit = SubmitField('Submit')

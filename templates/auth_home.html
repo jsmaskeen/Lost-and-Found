@@ -33,6 +33,7 @@ Lost and Found
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('all_found_items') }}"> Show all found items</span></a>
                     </li>
+                    {% block additional_vertical_admin_nav %}{% endblock %}
                 </ul>
             </nav>
             <br>

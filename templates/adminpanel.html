@@ -1,0 +1,82 @@
+{% extends "auth_home.html" %}
+
+{% block title %}
+Admin Panel
+{% endblock %}
+
+{% block additional_vertical_admin_nav %}
+
+<li class="nav-item">
+    <a class="nav-link" href="{{ url_for('new_claim_requests') }}">Review New Claim Requests</span></a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="{{ url_for('claims_under_processing') }}">Claims Under Processing</span></a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="">Add Categories</span></a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="">Old Claims</span></a>
+</li>
+
+{% endblock %}
+
+
+{% block recent_items_thing %}
+
+<div class="container-md">
+    <div class="row">
+    <div class="col-2"></div>
+    <div class="col-8">
+        <br>
+        <h2 class="h2 text-center">Statistics</h4>
+        <br>
+        <br>
+        <table class="table">
+            <tr>
+                <td>
+                    Lost Items
+                </td>
+                <td>
+                    {{ num_of_lost_items }}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Found Items
+                </td>
+                <td>
+                    {{ num_of_found_items }}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Total Users
+                </td>
+                <td>
+                    {{ num_of_users }}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Pending Claim Requests
+                </td>
+                <td>
+                    {{ num_of_claim_requests }}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Claim Requests Under Processing
+                </td>
+                <td>
+                    {{ num_of_claim_requests_under_processing }}
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="col-2"></div>
+</div>
+</div>
+
+{% endblock %}

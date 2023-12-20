@@ -7,3 +7,4 @@ t.txt
 template_renderer.py
 config.py
 hidden
+sa_creds.json

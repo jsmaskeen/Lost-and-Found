@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}
+Review Claim
+{% endblock %}
+
+
+{% block content %}
+
+<div class="container">
+
+    <div class="row">
+
+        <div class="col"></div>
+        <div class="col-6">
+            <br>
+            <h3 class="h3">Item</h3>
+            <br>
+            <div class="card mb-3">
+                <div class="row g-0">
+                    <div class="col-md-4">
+                        <img style="max-width: 150px;max-height: 150px;" src="{{ item['picture'] }}"
+                            class="img-fluid rounded-start">
+                    </div>
+                    <div class="col-md-8">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ item['name'] }}</h5>
+                            <p class="card-text">{{ item['description'] }}
+                                <br>
+                                Location Found: {{ item['location_found'] }}
+                                <br>
+                            </p>
+                            <p class="card-text text-body-secondary">Category : {{ item['category'] }} | Date : {{
+                                item['date'] }}<br>Added : {{ item['delta'] }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col"></div>
+    </div>
+    <div class="row">
+        <br>
+        <h3 class="h3">Claims:</h3>
+        <br>
+        <table class="table table-striped">
+
+            <thead>
+                <th>
+                    Claimed By
+                </th>
+                <th>
+                    Roll number
+                </th>
+                <th>
+                    Additional Information
+                </th>
+                <th>
+                    Proof
+                </th>
+            </thead>
+
+            <tbody>
+
+                {% for i in reqs %}
+                    <tr>
+                        <td>
+                            {{i['name']}}
+                        </td>
+                        <td>
+                            {{i['rollnum']}}
+                        </td>
+                        <td>
+                            {{i['additional_information']}}
+                        </td>
+                        <td>
+                            {% if i['proof'] %}
+                                <iframe src="https://docs.google.com/viewer?srcid={{ i['proof_id'] }}&pid=explorer&efh=false&a=v&chrome=false&embedded=true" frameborder="0" style="width:100%; height:200px;"></iframe>
+                                <br>
+                                <a href="{{ i['proof'] }}">File Url</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+
+            </tbody>
+        </table>
+    </div>
+
+    <form class="row g-3" role="submit" method="POST">
+        {{ form.hidden_tag() }}
+        <div class="col-6">
+            {{ form.approve_these.label }}
+            {{ form.approve_these(class="form-control") }}
+        </div>
+        <div class="col-6">
+            {{ form.reject_these.label }}
+            {{ form.reject_these(class="form-control") }}
+        </div>
+        <div class="col-5">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+    
+    
+
+</div>
+
+{% endblock %}

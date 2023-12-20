@@ -7,3 +7,6 @@ ibb_api_key = 'hehe'
 client_id = json.loads(open("client_secret.json").read())["web"]["client_id"]
 
 allow_all_emails = True
+
+sacreds_file = 'sa_creds.json'
+brevo_api = ''

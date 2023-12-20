@@ -1,4 +1,14 @@
-from flask import Flask, render_template, redirect, session, request, abort, jsonify
+from flask import (
+    Flask,
+    render_template,
+    redirect,
+    session,
+    request,
+    abort,
+    jsonify,
+    flash,
+    url_for,
+)
 from flask_wtf.form import _Auto
 import requests
 from google.oauth2 import id_token
@@ -11,17 +21,30 @@ import config
 from functools import wraps
 import base64
 import db
-from helper import upload_image, cleaner, divide_chunks, dtnow, date_to_timestamp
+from helper import (
+    upload_image,
+    cleaner,
+    divide_chunks,
+    dtnow,
+    date_to_timestamp,
+    upload_pdf,
+    getIdFromUrl,
+    send_approve,
+    send_reject,
+    generateOTP,
+)
 from from_classes import *
 from datetime import timedelta
+from werkzeug.utils import secure_filename
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = config.client_secret
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
-GOOGLE_CLIENT_ID = (
-    config.client_id
-)
+GOOGLE_CLIENT_ID = config.client_id
 client_secrets_file = "client_secret.json"
 
 flow = Flow.from_client_secrets_file(
@@ -33,6 +56,7 @@ flow = Flow.from_client_secrets_file(
     ],
     redirect_uri=f"{config.domain}/callback",
 )
+
 
 def auth_required(fn):
     @wraps(fn)
@@ -49,11 +73,12 @@ def is_admin(fn):
     def decorated_view(*args, **kwargs):
         if not "google_id" in session:
             return redirect("/")
-        if session['google_id'] not in db.list_admins():
-            return redirect('/')
+        if session["google_id"] not in db.list_admins():
+            return redirect("/")
         return app.ensure_sync(fn)(*args, **kwargs)
 
     return decorated_view
+
 
 @app.before_request
 def make_session_permanent():
@@ -63,13 +88,19 @@ def make_session_permanent():
 
 @app.context_processor
 def inject_dict_for_all_templates():
-    return dict(login_details=session.get("login_details", {}),isadmin = session.get('isadmin',False),request=request)
+    return dict(
+        login_details=session.get("login_details", {}),
+        isadmin=session.get("isadmin", False),
+        request=request,
+    )
+
 
 @app.route("/login")
 async def login():
     auth_url, state = flow.authorization_url()
     session["state"] = state
     return redirect(auth_url)
+
 
 @app.route("/callback")
 async def callback():
@@ -101,10 +132,10 @@ async def callback():
         "email": id_info.get("email"),
     }
 
-    if str(id_info.get('sub')) in db.list_admins():
-        session['isadmin'] = True
+    if str(id_info.get("sub")) in db.list_admins():
+        session["isadmin"] = True
     else:
-        session['isadmin'] = False
+        session["isadmin"] = False
 
     user = db.sgetuser(id_info["sub"])
     if not user:
@@ -113,16 +144,19 @@ async def callback():
         )
     return redirect("/home")
 
+
 @app.route("/logout")
 async def logout():
     session.clear()
     return redirect("/")
+
 
 @app.route("/")
 async def home():
     if "google_id" in session:
         return redirect("/home")
     return render_template("home.html")
+
 
 @app.route("/home")
 @auth_required
@@ -138,6 +172,7 @@ async def auth_home():
     return render_template(
         "auth_home.html", recent_lost=recent_lost, recent_found=recent_found
     )
+
 
 @app.route("/report_a_lost_item", methods=["GET", "POST"])
 @auth_required
@@ -202,6 +237,7 @@ async def report_a_lost_item():
         location=location,
     )
 
+
 @app.route("/report_a_found_item", methods=["GET", "POST"])
 @auth_required
 async def report_a_found_item():
@@ -264,10 +300,67 @@ async def report_a_found_item():
         location=location,
     )
 
-@app.route("/claim_item/<string:_id>")
+
+@app.route("/claim_item/<string:_id>", methods=["GET", "POST"])
 @auth_required
 async def claim_item(_id):
-    return render_template("claim_item.html", _id=_id)
+    item = await cleaner([await db.get_found_item_by_id(_id)])
+    item = item[0]
+
+    name, rollnum, proofs, additional_information = [None] * 4
+
+    form = ClaimForm()
+
+    if form.validate_on_submit():
+        name = form.name.data
+        form.name.data = ""
+        rollnum = form.rollnum.data
+        form.rollnum.data = ""
+        additional_information = form.additional_information.data
+        form.additional_information.data = ""
+        proofs = form.proofs.data
+        if proofs:
+            proofs: FileStorage
+            if proofs.mimetype != "application/pdf":
+                flash("The upload file should be of the type pdf")
+                return redirect(f"/claim_item/{_id}")
+
+            fname = secure_filename(f"proofs_{_id}.pdf")
+            proofs.save(f"/tmp/{fname}")
+
+            with ThreadPoolExecutor() as pool:
+                res = await asyncio.get_event_loop().run_in_executor(
+                    pool, upload_pdf, f"/tmp/{fname}"
+                )
+
+            proofs_link = res
+        else:
+            proofs_link = None
+
+        await db.add_to_claim_queue(
+            _id,
+            session["google_id"],
+            proofs_link,
+            name,
+            rollnum,
+            additional_information,
+        )
+
+        return redirect("/all_found_items")
+
+    if form.errors != {}:
+        return jsonify(form.errors)
+
+    return render_template(
+        "claim_item.html",
+        item=item,
+        form=form,
+        name=name,
+        rollnum=rollnum,
+        proofs=proofs,
+        additional_information=additional_information,
+    )
+
 
 @app.route("/all_found_items", methods=["GET", "POST"])
 @auth_required
@@ -366,10 +459,7 @@ async def all_found_items():
                 {
                     "$search": {
                         "index": "found_items_search_index",
-                        "text": {
-                            "query": description.lower(),
-                            "path": "description"
-                        },
+                        "text": {"query": description.lower(), "path": "description"},
                     }
                 }
             )
@@ -380,24 +470,18 @@ async def all_found_items():
                         "index": "found_items_search_index",
                         "text": {
                             "query": location_found.lower(),
-                            "path": "location_found"
+                            "path": "location_found",
                         },
                     }
                 }
             )
 
-        search_params|={
-            'claimed':{'$eq':False}
-        }
-        
+        search_params |= {"claimed": {"$eq": False}}
 
-        pipeline.append(
-            {"$match": search_params})
-
+        pipeline.append({"$match": search_params})
 
         m = db.found_items_db.aggregate(pipeline)
         items = await cleaner(await m.to_list(length=100))
-
 
     if items == None:
         items = await cleaner(await db.get_all_found_items(claimed=False))
@@ -417,6 +501,7 @@ async def all_found_items():
         roomnum=roomnum,
         location=location,
     )
+
 
 @app.route("/all_lost_items", methods=["GET", "POST"])
 @auth_required
@@ -515,10 +600,7 @@ async def all_lost_items():
                 {
                     "$search": {
                         "index": "lost_items_search_index",
-                        "text": {
-                            "query": description.lower(),
-                            "path": "description"
-                        },
+                        "text": {"query": description.lower(), "path": "description"},
                     }
                 }
             )
@@ -529,23 +611,18 @@ async def all_lost_items():
                         "index": "lost_items_search_index",
                         "text": {
                             "query": location_lost.lower(),
-                            "path": "location_lost"
+                            "path": "location_lost",
                         },
                     }
                 }
             )
 
-        search_params|={
-            'found':{'$eq':False}
-        }
-        
+        search_params |= {"found": {"$eq": False}}
 
-        pipeline.append(
-            {"$match": search_params})
+        pipeline.append({"$match": search_params})
 
         m = db.lost_items_db.aggregate(pipeline)
         items = await cleaner(await m.to_list(length=100))
-
 
     if items == None:
         items = await cleaner(await db.get_all_lost_items(includes_found=False))
@@ -566,7 +643,8 @@ async def all_lost_items():
         location=location,
     )
 
-@app.route('/my_lost_items',methods=["GET","POST"])
+
+@app.route("/my_lost_items", methods=["GET", "POST"])
 @auth_required
 async def my_lost_items():
     items = None
@@ -607,9 +685,7 @@ async def my_lost_items():
 
         # print((description,category,from_date,to_date,acadblock,roomnum,location_found))
 
-        search_params = {'lost_by_uid':{
-            '$eq':session['google_id']
-        }}
+        search_params = {"lost_by_uid": {"$eq": session["google_id"]}}
 
         search_params |= {
             "date_as_ts": {  # done
@@ -665,10 +741,7 @@ async def my_lost_items():
                 {
                     "$search": {
                         "index": "lost_items_search_index",
-                        "text": {
-                            "query": description.lower(),
-                            "path": "description"
-                        },
+                        "text": {"query": description.lower(), "path": "description"},
                     }
                 }
             )
@@ -679,27 +752,25 @@ async def my_lost_items():
                         "index": "lost_items_search_index",
                         "text": {
                             "query": location_lost.lower(),
-                            "path": "location_lost"
+                            "path": "location_lost",
                         },
                     }
                 }
             )
 
-        search_params|={
-            'found':{'$eq':False}
-        }
-        
+        search_params |= {"found": {"$eq": False}}
 
-        pipeline.append(
-            {"$match": search_params})
+        pipeline.append({"$match": search_params})
 
         m = db.lost_items_db.aggregate(pipeline)
         items = await cleaner(await m.to_list(length=100))
 
-
     if items == None:
-        items = await cleaner(await db.get_all_lost_items_for_user(session['google_id'],includes_found=False))
-    
+        items = await cleaner(
+            await db.get_all_lost_items_for_user(
+                session["google_id"], includes_found=False
+            )
+        )
 
     if form.errors != {}:
         return jsonify(form.errors)
@@ -717,7 +788,8 @@ async def my_lost_items():
         location=location,
     )
 
-@app.route('/my_found_items',methods=['GET','POST'])
+
+@app.route("/my_found_items", methods=["GET", "POST"])
 @auth_required
 async def my_found_items():
     items = None
@@ -758,7 +830,7 @@ async def my_found_items():
 
         # print((description,category,from_date,to_date,acadblock,roomnum,location_found))
 
-        search_params = {'found_by_uid':{'$eq':session['google_id']}}
+        search_params = {"found_by_uid": {"$eq": session["google_id"]}}
 
         search_params |= {
             "date_as_ts": {  # done
@@ -814,10 +886,7 @@ async def my_found_items():
                 {
                     "$search": {
                         "index": "found_items_search_index",
-                        "text": {
-                            "query": description.lower(),
-                            "path": "description"
-                        },
+                        "text": {"query": description.lower(), "path": "description"},
                     }
                 }
             )
@@ -828,27 +897,23 @@ async def my_found_items():
                         "index": "found_items_search_index",
                         "text": {
                             "query": location_found.lower(),
-                            "path": "location_found"
+                            "path": "location_found",
                         },
                     }
                 }
             )
 
-        search_params|={
-            'claimed':{'$eq':False}
-        }
-        
+        search_params |= {"claimed": {"$eq": False}}
 
-        pipeline.append(
-            {"$match": search_params})
-
+        pipeline.append({"$match": search_params})
 
         m = db.found_items_db.aggregate(pipeline)
         items = await cleaner(await m.to_list(length=100))
 
-
     if items == None:
-        items = await cleaner(await db.get_all_found_items_for_user(session['google_id'],claimed=False))
+        items = await cleaner(
+            await db.get_all_found_items_for_user(session["google_id"], claimed=False)
+        )
 
     if form.errors != {}:
         return jsonify(form.errors)
@@ -866,10 +931,11 @@ async def my_found_items():
         location=location,
     )
 
-@app.route('/mark_found/<string:_id>',methods=['GET','POST'])
+
+@app.route("/mark_found/<string:_id>", methods=["GET", "POST"])
 @auth_required
 async def mark_found(_id):
-    item  = await cleaner([await db.get_lost_item_by_id(_id)])
+    item = await cleaner([await db.get_lost_item_by_id(_id)])
     item = item[0]
     question = None
     form = MarkFound()
@@ -879,30 +945,213 @@ async def mark_found(_id):
         form.question.data = False
         if question == True:
             await db.mark_item_as_found(_id)
-        return redirect('/my_lost_items')
+        return redirect("/my_lost_items")
+
+    return render_template("mark_found.html", item=item, form=form, question=question)
 
 
-    return render_template('mark_found.html',item=item,form=form,question=question)
-
-
-@app.route('/admin',methods=['GET'])
+@app.route("/admin", methods=["GET"])
 @auth_required
 @is_admin
-async def adminpage():
-    return 'hh'
+async def admin():
+    ls = {
+        "num_of_lost_items": len(await db.get_all_lost_items(includes_found=False)),
+        "num_of_claim_requests_under_processing": len(
+            await db.claims_db.find({"stage": "approved"}).to_list(length=None)
+        ),
+        "num_of_claim_requests": len(
+            await db.claims_db.find({"stage": "requested"}).to_list(length=None)
+        ),
+        "num_of_users": len(await db.users_db.find().to_list(length=None)),
+        "num_of_found_items": len(await db.get_all_found_items(claimed=False)),
+    }
+    return render_template("adminpanel.html", **ls)
 
 
-
-@app.route('/delete/<path:theurl>/<string:dbname>/<string:_id>')
+@app.route("/new_claim_requests", methods=["GET"])
 @auth_required
 @is_admin
-async def delete_from_db(theurl,dbname,_id):
+async def new_claim_requests():
+    claim_reqs = await db.list_new_claims()
+
+    ls = []
+
+    ls = [db.get_found_item_by_id(i["item_id"]) for i in claim_reqs]
+    ls = await asyncio.gather(*ls)
+    ls = await cleaner(ls)
+
+    for i in claim_reqs:
+        i["_id"] = str(i["_id"])
+    data = list(zip(ls, claim_reqs))
+    # for i in data:
+    #     print(i)
+    # print(data)
+    return render_template("new_claim_requests.html", data=data)
+
+
+@app.route("/delete/<path:theurl>/<string:dbname>/<string:_id>")
+@auth_required
+@is_admin
+async def delete_from_db(theurl, dbname, _id):
     # print(theurl,dbname,_id)
 
-    await db.delete_item(dbname,item_id=_id)
+    await db.delete_item(dbname, item_id=_id)
 
-    return redirect(f'/{theurl}')
+    return redirect(f"/{theurl}")
     # await db.delete_item()
+
+
+@app.route("/review_claim_item/<string:_id>", methods=["GET", "POST"])
+@auth_required
+@is_admin
+async def review_claim_item(_id):
+    approve_these, reject_these = [None] * 2
+    form = ReviewClaimItemForm()
+    item = await cleaner([await db.get_found_item_by_id(_id)])
+    item = item[0]
+    reqs = await db.get_claims_by_id(_id)
+    for i in reqs:
+        i["_id"] = str(i["_id"])
+        i["spcl"] = i["name"] + "|" + str(i["rollnum"])
+        if i["proof"]:
+            i["proof_id"] = getIdFromUrl(i["proof"])
+    choices = [i["spcl"] for i in reqs]
+    form.approve_these.choices = choices
+    form.reject_these.choices = choices
+
+    if form.validate_on_submit():
+        approve_these = form.approve_these.data
+        reject_these = form.reject_these.data
+        if len(approve_these) == 0 and len(reject_these) == 0:
+            return redirect(f"/review_claim_item/{_id}")
+
+        to_approve = list(set(approve_these) - set(reject_these))
+
+        for i in reqs:
+            if i["spcl"] in to_approve:
+                otp = generateOTP()
+                await db.approve_claim_stage2(i["_id"], otp)
+                uid = i["claimed_by"]
+                user = await db.get_user(uid)
+                print(otp)
+                await send_approve(
+                    user["name"], user["email"], url_for("view", _id=item["_id"]), otp
+                )
+            else:
+                await db.reject_claim_stage2(i["_id"])
+                uid = i["claimed_by"]
+                user = await db.get_user(uid)
+                await send_reject(
+                    user["name"], user["email"], url_for("view", _id=item["_id"])
+                )
+
+        return redirect("/new_claim_requests")
+
+    return render_template(
+        "review_claim_item.html",
+        reqs=reqs,
+        item=item,
+        form=form,
+        approve_these=approve_these,
+        reject_these=reject_these,
+    )
+
+
+@app.route("/claims_under_processing")
+@auth_required
+@is_admin
+async def claims_under_processing():
+    claim_reqs = await db.list_under_processing()
+
+    ls = []
+
+    ls = [db.get_found_item_by_id(i["item_id"]) for i in claim_reqs]
+    ls = await asyncio.gather(*ls)
+    ls = await cleaner(ls)
+
+    for i in claim_reqs:
+        i["_id"] = str(i["_id"])
+    data = list(zip(ls, claim_reqs))
+    # for i in data:
+    #     print(i)
+    # print(data)
+    return render_template("claims_under_processing.html", data=data)
+
+
+@app.route("/finalise_claim_item/<string:_id>", methods=["GET", "POST"])
+@auth_required
+@is_admin
+async def finalise_claim_item(_id):
+    req = await db.get_stage2claim_by_id(_id)
+
+    item = await cleaner([await db.get_found_item_by_id(req["item_id"])])
+    item = item[0]
+    item_id = item["_id"]
+
+    req["_id"] = str(req["_id"])
+    if req["proof"]:
+        req["proof_id"] = getIdFromUrl(req["proof"])
+
+    otp = None
+    form = FinaliseClaimItem()
+    item = await cleaner([await db.get_found_item_by_id(item_id)])
+    item = item[0]
+
+    mine_otp = req["otp"]
+
+    if form.validate_on_submit():
+        otp = form.otp.data
+        form.otp.data = ""
+
+        if str(mine_otp) != str(otp):
+            flash("Error: Incorrect OTP provided")
+            return redirect(f"/finalise_claim_item/{_id}")
+
+        await db.complete_claim(_id)
+        await db.claim_item(item_id, req["claimed_by"])
+
+        for i in await db.claims_db.find({"item_id": item_id}).to_list(length=None):
+            if str(i["_id"]) != _id and i["stage"] != "rejected":
+                if i["stage"] == "approved":
+                    user = await db.get_user(i["claimed_by"])
+                    await send_reject(
+                        user["name"], user["email"], url_for("view", _id=item["_id"])
+                    )
+                await db.claims_db.find_one_and_update(
+                    {"_id": i["_id"]}, {"$set": {"stage": "rejected"}}
+                )
+        flash("Completed Claim")
+        return redirect("/claims_under_processing")
+
+    return render_template(
+        "finalise_claim_item.html", item=item, req=req, form=form, otp=None
+    )
+
+
+@app.route("/view/<string:_id>")
+@auth_required
+async def view(_id):
+    l = await db.get_found_item_by_id(_id)
+    if not l:
+        l = await db.get_lost_item_by_id(_id)
+    l = await cleaner([l])
+    l = l[0]
+
+    return render_template("view.html", item=l)
+
+
+@app.route("/add_category", methods=["GET", "POST"])
+@auth_required
+@is_admin
+async def add_category():
+    ...
+
+
+@app.route("/old_claims")
+@auth_required
+@is_admin
+async def old_claims():
+    ...
 
 
 app.run(port=5100, debug=True)
