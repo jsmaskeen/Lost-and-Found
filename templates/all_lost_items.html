@@ -86,6 +86,9 @@ All Lost Items
                 <th scope="col">Category</th>
                 <th scope="col">Location</th>
                 <th scope="col">Date Lost</th>
+                {% if isadmin %}
+                <th scope="col">(Admin) Delete</th>
+                {% endif %}
                 {% block notlostanymorehead %}{% endblock %}
             </tr>
         </thead>
@@ -111,6 +114,11 @@ All Lost Items
                 <td>
                     {{ i['date'] }}
                 </td>
+                {% if isadmin %}
+                <td>
+                    <a href="{{ url_for('delete_from_db',theurl=url_for(request.endpoint, **request.view_args)[1:],_id=i['_id'],dbname='lost_items_db') }}" role="button" class="btn btn-danger">Delete</a>
+                </td>
+                {% endif %}
             </tr>
             {% endfor %}
     </table>

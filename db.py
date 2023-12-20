@@ -286,7 +286,18 @@ async def get_lost_item_by_id(item_id):
     return await lost_items_db.find_one({'_id':item_id})
 
 
+async def delete_item(dbname,item_id):
+    """lost_items_db | found_items_db"""
+    if isinstance(item_id,str):
+        item_id = ObjectId(item_id)
+    if dbname == 'lost_items_db':
+        await lost_items_db.delete_one({'_id':item_id})
+    if dbname == 'found_items_db':
+        await found_items_db.delete_one({'_id':item_id})
 
+
+async def add_admin(uid):
+    await admins_db.insert_one({'_id':uid,'admin':True})
 
 # async def list_categories():
 #     return [i['name'] for i  in await category_db.find({},{'_id':0,'name':1}).to_list(length=None)]
@@ -300,15 +311,24 @@ async def add_category(cat):
 #     await add_category('Money (Cash/Wallet/Card)')
 #     await add_category('Other')
 
+# async def m():
+#     await add_admin('101697754182408181748')
+
+# asyncio.run(m())
+
 # hearsay
 
 import pymongo
 c = pymongo.MongoClient(db_uri,tlsCAFile=ca)
 cat_db = c['iitgn_lafs']['category_db']
 u_db = c['iitgn_lafs']['users_db']
+admn_db = c['iitgn_lafs']['admins_db']
 def list_categories():
     return [i['name'] for i  in list(cat_db.find())]
 
+
+def list_admins():
+    return [i['_id'] for i in list(admn_db.find({'admin':True}))]
 
 def sgetuser(uid):
     uid = str(uid)

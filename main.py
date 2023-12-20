@@ -13,6 +13,7 @@ import base64
 import db
 from helper import upload_image, cleaner, divide_chunks, dtnow, date_to_timestamp
 from from_classes import *
+from datetime import timedelta
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = config.client_secret
@@ -42,9 +43,27 @@ def auth_required(fn):
 
     return decorated_view
 
+
+def is_admin(fn):
+    @wraps(fn)
+    def decorated_view(*args, **kwargs):
+        if not "google_id" in session:
+            return redirect("/")
+        if session['google_id'] not in db.list_admins():
+            return redirect('/')
+        return app.ensure_sync(fn)(*args, **kwargs)
+
+    return decorated_view
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(minutes=45)
+
+
 @app.context_processor
 def inject_dict_for_all_templates():
-    return dict(login_details=session.get("login_details", {}))
+    return dict(login_details=session.get("login_details", {}),isadmin = session.get('isadmin',False),request=request)
 
 @app.route("/login")
 async def login():
@@ -67,8 +86,9 @@ async def callback():
     id_info = id_token.verify_oauth2_token(
         id_token=credentials._id_token, request=token_request, audience=GOOGLE_CLIENT_ID
     )
-    if not "@iitgn.ac.in" in id_info["email"]:
-        return redirect("/")
+    if not config.allow_all_emails:
+        if not "@iitgn.ac.in" in id_info["email"]:
+            return redirect("/")
 
     session["google_id"] = id_info.get("sub")
     session["name"] = id_info.get("name")
@@ -80,6 +100,11 @@ async def callback():
         "picture": id_info.get("picture"),
         "email": id_info.get("email"),
     }
+
+    if str(id_info.get('sub')) in db.list_admins():
+        session['isadmin'] = True
+    else:
+        session['isadmin'] = False
 
     user = db.sgetuser(id_info["sub"])
     if not user:
@@ -858,6 +883,26 @@ async def mark_found(_id):
 
 
     return render_template('mark_found.html',item=item,form=form,question=question)
+
+
+@app.route('/admin',methods=['GET'])
+@auth_required
+@is_admin
+async def adminpage():
+    return 'hh'
+
+
+
+@app.route('/delete/<path:theurl>/<string:dbname>/<string:_id>')
+@auth_required
+@is_admin
+async def delete_from_db(theurl,dbname,_id):
+    # print(theurl,dbname,_id)
+
+    await db.delete_item(dbname,item_id=_id)
+
+    return redirect(f'/{theurl}')
+    # await db.delete_item()
 
 
 app.run(port=5100, debug=True)

@@ -5,3 +5,5 @@ client_secret = json.loads(open("client_secret.json").read())["web"]["client_sec
 
 ibb_api_key = 'hehe'
 client_id = json.loads(open("client_secret.json").read())["web"]["client_id"]
+
+allow_all_emails = True

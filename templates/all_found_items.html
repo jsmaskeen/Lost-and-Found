@@ -87,6 +87,9 @@ All Found Items
                 <th scope="col">Location</th>
                 <th scope="col">Date Found</th>
                 <th scope="col">Claim</th>
+                {% if isadmin %}
+                <th scope="col">(Admin) Delete</th>
+                {% endif %}
             </tr>
         </thead>
         <tbody>
@@ -114,6 +117,11 @@ All Found Items
                 <td>
                     <a href="{{ url_for('claim_item',_id=i['_id']) }}" role="button" class="btn btn-primary">Claim</a>
                 </td>
+                {% if isadmin %}
+                <td>
+                    <a href="{{ url_for('delete_from_db',theurl=url_for(request.endpoint, **request.view_args)[1:],_id=i['_id'],dbname='found_items_db') }}" role="button" class="btn btn-danger">Delete</a>
+                </td>
+                {% endif %}
             </tr>
             {% endfor %}
     </table>
