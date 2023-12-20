@@ -1,0 +1,23 @@
+{% extends "all_lost_items.html" %}
+
+{% block title %}
+My Lost Items
+{% endblock %}
+
+{% block notlostanymorehead %}
+<th scope="col">Mark Found</th>
+{% endblock %}
+
+
+
+{% block myscriptformylostitems %}
+
+{% for i in items %}
+
+<script>
+    var ele = `<td> <a href="{{ url_for('mark_found',_id=i['_id']) }}" role="button" class="btn btn-primary">Mark Found</a> </td>`
+    document.getElementById("{{ i['_id'] }}").innerHTML+=ele;
+</script>
+
+{% endfor %}
+{% endblock %}

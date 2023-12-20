@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}
+Report a Lost Item
+{% endblock %}
+
+
+{% block content %}
+<div class="container">
+    <br>
+    <form class="row g-3" role="submit" method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+        <div class="col-md-7">
+            {{ form.name.label }}
+            {{ form.name(class="form-control") }}
+        </div>
+        <div class="col-md-5">
+            {{ form.picture.label }}
+            {{ form.picture(class="form-control") }}
+        </div>
+        <div class="col-12">
+            {{ form.description.label }}
+            {{ form.description(class="form-control") }}
+        </div>
+        <div class="col-12">
+            If the item was found in Academic Block, then write the block number and room number<br>
+            Else only fill in the location field, and let academic block number and room number be 0 and 0.
+        </div>
+        <div class="col-2">
+            {{ form.abnum.label }}
+            {{ form.abnum(class="form-control") }}
+        </div>
+        <div class="col-2">
+            {{ form.roomnum.label }}
+            {{ form.roomnum(class="form-control") }}
+        </div>
+        <div class="col-4">
+            {{ form.location.label }}
+            {{ form.location(class="form-control") }}
+        </div>
+        <div class="col-2">
+            {{ form.category.label }}
+            {{ form.category(class="form-control") }}
+        </div>
+        <div class="col-2">
+            {{ form.date_found.label }}
+            {{ form.date_found(class="form-control") }}
+        </div>
+        <div class="col-12">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+
+</div>
+{% endblock %}

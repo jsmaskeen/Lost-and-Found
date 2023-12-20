@@ -1,0 +1,9 @@
+client_secret.json
+*__pycache__*
+venv/
+help
+log.txt
+t.txt
+template_renderer.py
+config.py
+hidden
