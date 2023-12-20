@@ -1,43 +1,42 @@
+import asyncio
+import base64
+import os
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from functools import wraps
+
+import google.auth.transport.requests
+import requests
 from flask import (
     Flask,
-    render_template,
-    redirect,
-    session,
-    request,
     abort,
-    jsonify,
     flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
     url_for,
 )
-from flask_wtf.form import _Auto
-import requests
 from google.oauth2 import id_token
-from pip._vendor import cachecontrol
 from google_auth_oauthlib.flow import Flow
-import google.auth.transport.requests
-import os
-from loggerfile import logger
+from pip._vendor import cachecontrol
+from werkzeug.utils import secure_filename
+
 import config
-from functools import wraps
-import base64
 import db
+from from_classes import *
 from helper import (
-    upload_image,
     cleaner,
-    divide_chunks,
-    dtnow,
     date_to_timestamp,
-    upload_pdf,
+    divide_chunks,
+    generateOTP,
     getIdFromUrl,
     send_approve,
     send_reject,
-    generateOTP,
+    upload_image,
+    upload_pdf,
 )
-from from_classes import *
-from datetime import timedelta
-from werkzeug.utils import secure_filename
-from concurrent.futures import ThreadPoolExecutor
-import asyncio
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = config.client_secret
@@ -62,6 +61,7 @@ def auth_required(fn):
     @wraps(fn)
     def decorated_view(*args, **kwargs):
         if not "google_id" in session:
+            flash("You must login to access the endpoint")
             return redirect("/")
         return app.ensure_sync(fn)(*args, **kwargs)
 
@@ -72,8 +72,10 @@ def is_admin(fn):
     @wraps(fn)
     def decorated_view(*args, **kwargs):
         if not "google_id" in session:
+            flash("You must login to access the endpoint")
             return redirect("/")
         if session["google_id"] not in db.list_admins():
+            flash("You must have admin access to access the endpoint")
             return redirect("/")
         return app.ensure_sync(fn)(*args, **kwargs)
 
@@ -115,10 +117,14 @@ async def callback():
     token_request = google.auth.transport.requests.Request(session=cached_session)
 
     id_info = id_token.verify_oauth2_token(
-        id_token=credentials._id_token, request=token_request, audience=GOOGLE_CLIENT_ID
+        id_token=credentials._id_token,
+        request=token_request,
+        audience=GOOGLE_CLIENT_ID,
+        clock_skew_in_seconds=20,
     )
     if not config.allow_all_emails:
         if not "@iitgn.ac.in" in id_info["email"]:
+            flash("Only @iitgn.ac.in emails are allowed.")
             return redirect("/")
 
     session["google_id"] = id_info.get("sub")
@@ -187,6 +193,9 @@ async def report_a_lost_item():
         form.description.data = ""
         picture = form.picture.data
         if picture:
+            if not picture.mimetype.startswith("image"):
+                flash("The uploaded file is not a picture")
+                return redirect(f"/report_a_lost_item")
             picture: FileStorage
             picture = base64.b64encode(picture.stream.read()).decode("utf-8")
 
@@ -201,6 +210,7 @@ async def report_a_lost_item():
 
         if abnum != 0 and roomnum != 0:
             if abnum <= 0 or roomnum <= 0:
+                flash("Academic Block Number or Room Number cannot be negative")
                 return redirect("/report_a_lost_item")
 
             location_lost = (int(abnum), int(roomnum))
@@ -221,6 +231,8 @@ async def report_a_lost_item():
             semantic_time=None,
             uid=session["google_id"],
         )
+        flash("Reported Sucessfully")
+        return redirect("/report_a_lost_item")
 
     if form.errors != {}:
         return jsonify(form.errors)
@@ -251,6 +263,9 @@ async def report_a_found_item():
         form.description.data = ""
         picture = form.picture.data
         if picture:
+            if not picture.mimetype.startswith("image"):
+                flash("The uploaded file is not a picture")
+                return redirect(f"/report_a_found_item")
             picture: FileStorage
             picture = base64.b64encode(picture.stream.read()).decode("utf-8")
 
@@ -265,6 +280,7 @@ async def report_a_found_item():
 
         if abnum != 0 and roomnum != 0:
             if abnum <= 0 or roomnum <= 0:
+                flash("Academic Block Number or Room Number cannot be negative")
                 return redirect("/report_a_found_item")
 
             location_found = (int(abnum), int(roomnum))
@@ -284,6 +300,8 @@ async def report_a_found_item():
             time=None,
             uid=session["google_id"],
         )
+        flash("Successfully Reported")
+        return redirect("/report_a_found_item")
 
     if form.errors != {}:
         return jsonify(form.errors)
@@ -345,7 +363,7 @@ async def claim_item(_id):
             rollnum,
             additional_information,
         )
-
+        flash("Claim request sent for approval")
         return redirect("/all_found_items")
 
     if form.errors != {}:
@@ -385,6 +403,7 @@ async def all_found_items():
         form.to_date.data = ""
 
         if acadblock < 0 or roomnum < 0:
+            flash("Academic Block Number or Room Number cannot be negative")
             return redirect("/all_found_items")
 
         if acadblock != 0 and roomnum == 0 and not location:
@@ -526,6 +545,7 @@ async def all_lost_items():
         form.to_date.data = ""
 
         if acadblock < 0 or roomnum < 0:
+            flash("Academic Block Number or Room Number cannot be negative")
             return redirect("/all_lost_items")
 
         if acadblock != 0 and roomnum == 0 and not location:
@@ -667,6 +687,7 @@ async def my_lost_items():
         form.to_date.data = ""
 
         if acadblock < 0 or roomnum < 0:
+            flash("Academic Block Number or Room Number cannot be negative")
             return redirect("/my_lost_items")
 
         if acadblock != 0 and roomnum == 0 and not location:
@@ -812,6 +833,7 @@ async def my_found_items():
         form.to_date.data = ""
 
         if acadblock < 0 or roomnum < 0:
+            flash("Academic Block Number or Room Number cannot be negative")
             return redirect("/all_found_items")
 
         if acadblock != 0 and roomnum == 0 and not location:
@@ -945,6 +967,7 @@ async def mark_found(_id):
         form.question.data = False
         if question == True:
             await db.mark_item_as_found(_id)
+        flash("Marked Item as Found")
         return redirect("/my_lost_items")
 
     return render_template("mark_found.html", item=item, form=form, question=question)
@@ -996,7 +1019,7 @@ async def delete_from_db(theurl, dbname, _id):
     # print(theurl,dbname,_id)
 
     await db.delete_item(dbname, item_id=_id)
-
+    flash("Deleted the item")
     return redirect(f"/{theurl}")
     # await db.delete_item()
 
@@ -1023,6 +1046,7 @@ async def review_claim_item(_id):
         approve_these = form.approve_these.data
         reject_these = form.reject_these.data
         if len(approve_these) == 0 and len(reject_these) == 0:
+            flash("You must select atleast one user to approve or reject")
             return redirect(f"/review_claim_item/{_id}")
 
         to_approve = list(set(approve_these) - set(reject_these))
@@ -1044,7 +1068,7 @@ async def review_claim_item(_id):
                 await send_reject(
                     user["name"], user["email"], url_for("view", _id=item["_id"])
                 )
-
+        flash("Approved and Rejected respective users for the claim")
         return redirect("/new_claim_requests")
 
     return render_template(
@@ -1144,14 +1168,41 @@ async def view(_id):
 @auth_required
 @is_admin
 async def add_category():
-    ...
+    name = None
+    form = CategoryForm()
+    if form.validate_on_submit():
+        name = form.name.data
+        form.name.data = ""
+        await db.add_category(name)
+        flash("Added the category")
+        return redirect("add_category")
+    existing = await db.category_db.find({}, {"name": 1}).to_list(length=None)
+    return render_template(
+        "add_category.html",
+        name=name,
+        form=form,
+        existing=" | ".join([i["name"] for i in existing]),
+    )
 
 
 @app.route("/old_claims")
 @auth_required
 @is_admin
 async def old_claims():
-    ...
+    # rejected and completed
+
+    reqs = await db.claims_db.find(
+        {"stage": {"$in": ["completed", "rejected"]}}
+    ).to_list(length=None)
+    for i in reqs:
+        i["_id"] = str(i["_id"])
+
+    return render_template("old_claims.html", reqs=reqs)
+
+
+@app.errorhandler(500)
+def int_ser_err(err):
+    return render_template('error.html',err=err)
 
 
 app.run(port=5100, debug=True)

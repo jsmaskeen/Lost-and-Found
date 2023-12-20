@@ -90,3 +90,8 @@ class ReviewClaimItemForm(FlaskForm):
 class FinaliseClaimItem(FlaskForm):
     otp = StringField('Enter the OTP',validators=[DataRequired(),])
     submit = SubmitField('Submit')
+
+
+class CategoryForm(FlaskForm):
+    name = StringField('Enter the name of new category',validators=[DataRequired(),])
+    submit = SubmitField('Submit')

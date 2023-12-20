@@ -14,7 +14,7 @@ Review Claim
         <div class="col"></div>
         <div class="col-6">
             <br>
-            <h3 class="h3">Item</h3>
+            <h3 class="h3 text-center">Item Details:</h3>
             <br>
             <div class="card mb-3">
                 <div class="row g-0">
@@ -40,6 +40,7 @@ Review Claim
         <div class="col"></div>
     </div>
     <div class="row">
+        <br>
         <br>
         <h3 class="h3">Claims:</h3>
         <br>
@@ -89,6 +90,9 @@ Review Claim
 
     <form class="row g-3" role="submit" method="POST">
         {{ form.hidden_tag() }}
+        <div class="col-12">
+            You can press Ctrl key and select multiple users
+        </div>
         <div class="col-6">
             {{ form.approve_these.label }}
             {{ form.approve_these(class="form-control") }}
