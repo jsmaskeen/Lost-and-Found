@@ -353,7 +353,10 @@ async def delete_item(dbname,item_id):
 
 
 async def add_admin(uid):
-    await admins_db.insert_one({'_id':uid,'admin':True})
+    try:
+        await admins_db.insert_one({'_id':uid,'admin':True})
+    except:
+        pass
 
 # async def list_categories():
 #     return [i['name'] for i  in await category_db.find({},{'_id':0,'name':1}).to_list(length=None)]
