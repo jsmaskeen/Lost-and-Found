@@ -83,6 +83,23 @@ users_db.delete_one({
   "found_lost_items": 1
 })
 
+def add_category(cat):
+    category_db.insert_one({'name':cat})
+    return
+
+add_category('Electronics')
+add_category('Money (Cash/Wallet/Card)')
+add_category('Other')
+add_category('Keys')
+add_category('Bag')
+add_category('Cycle')
+add_category('Clothes')
+add_category('Bottle')
+add_category('Watch')
+add_category('Accessories')
+add_category('Umbrella')
+
+
 from flask import Flask,session,abort,request,redirect
 import requests
 
@@ -122,8 +139,11 @@ async def login():
 async def callback():
     flow.fetch_token(authorization_response=request.url)
 
-    if not session["state"] == request.args["state"]:
-        abort(500)  # State does not match!
+    try:
+        if not session["state"] == request.args["state"]:
+            abort(500)  # State does not match!
+    except KeyError:
+        return redirect('/')
 
     credentials = flow.credentials
     request_session = requests.session()
