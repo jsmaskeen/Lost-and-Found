@@ -1019,7 +1019,11 @@ async def new_claim_requests():
 @is_admin
 async def delete_from_db(theurl, dbname, _id):
     # print(theurl,dbname,_id)
-
+    if dbname == 'oki':
+        await db.delete_item('lost_items_db',item_id=_id)
+        await db.delete_item('found_items_db',item_id=_id)
+        flash("Deleted the item")
+        return redirect("/home")
     await db.delete_item(dbname, item_id=_id)
     flash("Deleted the item")
     return redirect(f"/{theurl}")

@@ -27,3 +27,7 @@
 9. Then create two search indexes, one for lost_items_db and one for found_items_db on the mongodb site.
 10. Run the [run_second](./run_second.py) file.
 11. Finally, run `python main.py`
+
+## Images:
+
+will add later
