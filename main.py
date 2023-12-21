@@ -1063,16 +1063,16 @@ async def review_claim_item(_id):
                 await db.approve_claim_stage2(i["_id"], otp)
                 uid = i["claimed_by"]
                 user = await db.get_user(uid)
-                print(otp)
+                # print(otp)
                 await send_approve(
-                    user["name"], user["email"], url_for("view", _id=item["_id"]), otp
+                    user["name"], user["email"], url_for("view", _id=item["_id"]), otp,item['name'],item['location_found'],item['picture']
                 )
             else:
                 await db.reject_claim_stage2(i["_id"])
                 uid = i["claimed_by"]
                 user = await db.get_user(uid)
                 await send_reject(
-                    user["name"], user["email"], url_for("view", _id=item["_id"])
+                    user["name"], user["email"], url_for("view", _id=item["_id"]),item['name'],item['location_found'],item['picture']
                 )
         flash("Approved and Rejected respective users for the claim")
         return redirect("/new_claim_requests")
@@ -1145,7 +1145,7 @@ async def finalise_claim_item(_id):
                 if i["stage"] == "approved":
                     user = await db.get_user(i["claimed_by"])
                     await send_reject(
-                        user["name"], user["email"], url_for("view", _id=item["_id"])
+                        user["name"], user["email"], url_for("view", _id=item["_id"]),item['name'],item['location_found'],item['picture']
                     )
                 await db.claims_db.find_one_and_update(
                     {"_id": i["_id"]}, {"$set": {"stage": "rejected"}}

@@ -168,9 +168,28 @@ def send_email(subject, html, mailid, receiver_username):
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-async def send_approve(name,mailid,url,otp):
-    subject = 'Claim approved!'
-    html = f'Hello {name}<br><br>Your claim request for the <a href = "{domain}{url}">item</a> has been approved.<br><br>Here is the OTP: {otp}.\nYou will need this.<br><br>Regards'
+async def send_approve(name,mailid,url,otp,iname,location,picture):
+    subject = f'Claim for {iname} approved!'
+    html = f'''Dear {name},
+<br>
+<br>
+{f'<img style="max-width: 150px;max-height: 150px;" src="{picture}" >' if picture else ''}<br>
+Item Name: {iname}
+<br>
+Location Found: {location}
+<br>
+Your claim request for the above <a href = "{domain}{url}">item</a> has been <b>approved</b>.
+<br>
+<br>
+Here is the <b>OTP: {otp}</b>
+<br>
+You will need the otp while checking out your item.
+<br>
+<br>
+Regards,
+<br>
+IITGN Lost and Found
+'''
     
     with ThreadPoolExecutor() as pool:
             await asyncio.get_event_loop().run_in_executor(
@@ -178,10 +197,24 @@ async def send_approve(name,mailid,url,otp):
             )
 
 
-async def send_reject(name,mailid,url):
-    subject = 'Claim rejected!'
-    html = f'Hello {name}<br><br>Your claim request for the <a href = "{domain}{url}">item</a> has been rejected.<br><br>Regards'
+async def send_reject(name,mailid,url,iname,location,picture):
     
+    subject = f'Claim for {iname} rejected!'
+    html = f'''Dear {name},
+<br>
+<br>
+{f'<img style="max-width: 150px;max-height: 150px;" src="{picture}" >' if picture else ''}<br>
+Item Name: {iname}
+<br>
+Location Found: {location}
+<br>
+Your claim request for the above <a href = "{domain}{url}">item</a> has been <b>rejected</b>.
+<br>
+<br>
+Regards,
+<br>
+IITGN Lost and Found
+'''
     with ThreadPoolExecutor() as pool:
             await asyncio.get_event_loop().run_in_executor(
                 pool, send_email,subject,html,mailid,name
@@ -206,4 +239,5 @@ def generateOTP() :
     return OTP
 
 
-# asyncio.run(send_approve('Jaskirat','23110146@iitgn.ac.in','the thing','42523523'))
+# asyncio.run(send_approve('Jaskirat','23110146@iitgn.ac.in','https://ims.iitgn.ac.in/','42523523','bottle','AB 7/101','https://www.bigbasket.com/media/uploads/p/xxl/251040_10-sprite-soft-drink-lime-flavoured.jpg'))
+# asyncio.run(send_reject('Jaskirat','23110146@iitgn.ac.in','https://ims.iitgn.ac.in/','bottle','AB 7/101','https://www.bigbasket.com/media/uploads/p/xxl/251040_10-sprite-soft-drink-lime-flavoured.jpg'))
