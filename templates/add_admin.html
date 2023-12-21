@@ -1,0 +1,34 @@
+{% extends "adminpanel.html" %}
+
+{% block title %}
+Add a Admin
+{% endblock %}
+
+{% block recent_items_thing %}
+
+<div class="row text-center">
+    <div class="col">    </div>
+    <div class="col-8">
+        <br>
+        <br>
+        Existing Admins:<br>
+        {{ existing }}
+        <br>
+        <br>
+        <br>
+        <br>
+        <form class="row g-3" role="submit" method="POST">
+            {{ form.hidden_tag() }}
+            <div class="col-12">
+                {{ form.email.label }}
+                {{ form.email(class="form-control") }}
+            </div>
+            <div class="col">
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+    <div class="col">    </div>
+</div>
+
+{% endblock %}
