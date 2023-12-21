@@ -1206,5 +1206,33 @@ async def old_claims():
 def int_ser_err(err):
     return render_template('error.html',err=err)
 
+@app.route("/add_admin", methods=["GET", "POST"])
+@auth_required
+@is_admin
+async def add_admin():
+    email = None
+    form = AdminForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        form.email.data = ""
+        user = await db.users_db.find_one({'email':email})
+        if not user:
+            flash(f'Ask the user ({email}) to first login to the site. Then retry adding them as admin.')
+            return redirect("add_admin")
+        await db.add_admin(user['_id'])
+        flash("Added the user as admin")
+        return redirect("add_admin")
+    
+    existing = await db.admins_db.find({}, {"name": 1}).to_list(length=None)
+    l = []
+    for i in existing:
+        l.append(await db.get_user(i['_id']) )
+    return render_template(
+        "add_admin.html",
+        name=email,
+        form=form,
+        existing=" | ".join([i["name"] for i in l]),
+    )
+
 
 app.run(port=5100, debug=True)

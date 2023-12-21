@@ -9,7 +9,8 @@ from wtforms import (
     DateField,
     TextAreaField,
     SelectField,
-    SelectMultipleField
+    SelectMultipleField,
+    EmailField
 )
 from wtforms.validators import DataRequired
 from werkzeug.datastructures import FileStorage
@@ -94,4 +95,9 @@ class FinaliseClaimItem(FlaskForm):
 
 class CategoryForm(FlaskForm):
     name = StringField('Enter the name of new category',validators=[DataRequired(),])
+    submit = SubmitField('Submit')
+
+
+class AdminForm(FlaskForm):
+    email = EmailField('Enter the email id of the user to give admin access',validators=[DataRequired(),])
     submit = SubmitField('Submit')
