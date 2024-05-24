@@ -30,4 +30,19 @@
 
 ## Images:
 
-will add later
+1. Reporting a lost item
+    ![](./images/report_a_lost_item.png)
+2. User dashboard
+    ![](./images/user_dashboard.png)
+3. Claiming a found item
+    ![](./images/claim_a_found_item.png)
+4. Admin panel
+    ![](./images/admin_panel.png)
+5. Pending claim requests
+    ![](./images/review_claim_requests.png)
+6. Review a claim
+    ![](./images/claim%20review.png)
+7. OTP sent to mail
+    ![](./images/OTP_mail.png)
+8. Claim finalization
+    ![](./images/claim%20finalization.png)
